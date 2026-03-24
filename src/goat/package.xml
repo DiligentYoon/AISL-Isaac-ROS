@@ -2,7 +2,7 @@
 <package format="3">
   <name>goat</name>
   <version>0.0.0</version>
-  <description>ROS2 topic I/O tester for Isaac Sim GOAT</description>
+  <description>ROS2 Isaac Sim GOAT control package</description>
   <maintainer email="user@todo.todo">user</maintainer>
   <license>TODO</license>
 
@@ -10,6 +10,7 @@
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

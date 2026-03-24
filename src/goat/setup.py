@@ -10,17 +10,19 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/sim_goat_config.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
-    description='ROS2 topic I/O tester for Isaac Sim GOAT',
+    description='ROS2 Isaac Sim GOAT control package',
     license='TODO',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'test_topic_io = goat.test_topic_io:main',
+            'topic_io_node = goat.nodes.topic_io_node:main',
+            'control_node = goat.nodes.control_node:main',
         ],
     },
 )

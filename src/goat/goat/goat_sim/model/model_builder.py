@@ -1,0 +1,154 @@
+# goat_sim/model/model_builder.py
+from __future__ import annotations
+
+from typing import Any, Dict, List, Tuple
+
+import yaml
+
+from ..control.control_pipeline import ControlPipeline
+from ..control.pd_controller import PDJointController
+from ..control.pi_controller import WheelPIController
+from ..control.safety_limiter import TorqueSafetyLimiter, JointSafetyLimiter
+from .goat_model import GoatModel, GoatModelConfig
+
+
+def _as_list(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return list(value)
+
+
+def _require(mapping: Dict[str, Any], key: str) -> Any:
+    if key not in mapping:
+        raise KeyError(f"Missing required key: '{key}'")
+    return mapping[key]
+
+
+def _get_section(config_dict: Dict[str, Any], *names: str) -> Dict[str, Any]:
+    """Return first existing section dict among names, else {}."""
+    for name in names:
+        section_value = config_dict.get(name, None)
+        if isinstance(section_value, dict):
+            return section_value
+    return {}
+
+
+def _load_yaml_file(yaml_path: str) -> Dict[str, Any]:
+    with open(yaml_path, "r", encoding="utf-8") as file_handle:
+        data = yaml.safe_load(file_handle)
+    if not isinstance(data, dict):
+        raise ValueError("YAML root must be a mapping/dict.")
+    return data
+
+
+def build_goat_model_from_yaml(yaml_path: str) -> GoatModel:
+    """Load YAML and build GoatModel."""
+    config_dict = _load_yaml_file(yaml_path)
+
+    robot_section = _get_section(config_dict, "robot", "goat", "model")
+    pd_section = _get_section(config_dict, "pd", "position_pd")
+    wheel_pi_section = _get_section(config_dict, "wheel_pi", "pi", "velocity_pi")
+    safety_section = _get_section(config_dict, "safety", "limiter", "torque_limiter")
+    estimation_section = _get_section(config_dict, "estimation", "state_manager")
+
+    # Robot cfg
+    joint_names = _as_list(_require(robot_section, "joint_names"))
+    joint_indices = _as_list(robot_section.get("joint_indices", list(range(0, 6))))
+    wheel_indices = _as_list(robot_section.get("wheel_indices", [6, 7]))
+    knee_indices = _as_list(robot_section.get("knee_indices", []))
+    natural_joint_position = robot_section.get("natural_joint_position", None)
+
+    motor_torque_constant_nm_per_amp = _as_list(_require(robot_section, "motor_torque_constant_nm_per_amp"))
+    motor_gear_ratio = _as_list(_require(robot_section, "motor_gear_ratio"))
+    motor_direction = _as_list(_require(robot_section, "motor_direction"))
+
+    pd_proportional_gain = pd_section.get("proportional_gain", None)
+    pd_derivative_gain = pd_section.get("derivative_gain", None)
+
+    wheel_pi_proportional_gain = wheel_pi_section.get("proportional_gain", None)
+    wheel_pi_integral_gain = wheel_pi_section.get("integral_gain", None)
+
+    wheel_integrator_state_limit = float(wheel_pi_section.get("integrator_state_limit", 0.0))
+    wheel_output_limit_per_joint = wheel_pi_section.get("output_limit_per_joint", None)
+
+    # Safety cfg
+    torque_lpf_alpha_per_joint = safety_section.get("torque_lpf_alpha_per_joint", None)
+    max_torque_per_joint = safety_section.get("max_torque_per_joint", None)
+    joint_pos_limit = safety_section.get("joint_pos_limit", None)
+    joint_pos_limit_margin = safety_section.get("joint_pos_limit_margin", None)
+    joint_vel_limit = safety_section.get("joint_vel_limit", None)
+    joint_vel_limit_margin = safety_section.get("joint_vel_limit_margin", None)
+
+    # Estimation cfg (kept for GoatModelConfig compatibility, not used at runtime)
+    motor_current_amp_per_lsb = float(estimation_section.get("motor_current_amp_per_lsb", 66.0 / 4096.0))
+    angle_deg_per_lsb = float(estimation_section.get("angle_deg_per_lsb", 0.001))
+    speed_deg_per_sec_per_lsb = float(estimation_section.get("speed_deg_per_sec_per_lsb", 0.01))
+
+    joint_velocity_lpf_alpha = estimation_section.get("joint_velocity_lpf_alpha", None)
+    joint_effort_like_lpf_alpha = estimation_section.get("joint_effort_like_lpf_alpha", None)
+    joint_velocity_lpf_alpha = None if joint_velocity_lpf_alpha is None else float(joint_velocity_lpf_alpha)
+    joint_effort_like_lpf_alpha = None if joint_effort_like_lpf_alpha is None else float(joint_effort_like_lpf_alpha)
+
+    goat_model_config = GoatModelConfig(
+        joint_names=[str(name) for name in joint_names],
+        joint_indices=[int(index) for index in joint_indices],
+        wheel_indices=[int(index) for index in wheel_indices],
+        knee_indices=[int(index) for index in knee_indices],
+        natural_joint_position=[float(value) for value in natural_joint_position],
+        motor_torque_constant_nm_per_amp=[float(value) for value in motor_torque_constant_nm_per_amp],
+        motor_gear_ratio=[float(value) for value in motor_gear_ratio],
+        motor_direction=[int(value) for value in motor_direction],
+        motor_current_amp_per_lsb=motor_current_amp_per_lsb,
+        angle_deg_per_lsb=angle_deg_per_lsb,
+        speed_deg_per_sec_per_lsb=speed_deg_per_sec_per_lsb,
+        pd_proportional_gain=None if pd_proportional_gain is None else [float(value) for value in _as_list(pd_proportional_gain)],
+        pd_derivative_gain=None if pd_derivative_gain is None else [float(value) for value in _as_list(pd_derivative_gain)],
+        wheel_pi_proportional_gain=None if wheel_pi_proportional_gain is None else [float(value) for value in _as_list(wheel_pi_proportional_gain)],
+        wheel_pi_integral_gain=None if wheel_pi_integral_gain is None else [float(value) for value in _as_list(wheel_pi_integral_gain)],
+        wheel_integrator_state_limit=wheel_integrator_state_limit,
+        wheel_output_limit_per_joint=None if wheel_output_limit_per_joint is None else [float(value) for value in _as_list(wheel_output_limit_per_joint)],
+        torque_lpf_alpha_per_joint=None if torque_lpf_alpha_per_joint is None else [float(value) for value in _as_list(torque_lpf_alpha_per_joint)],
+        max_torque_per_joint=None if max_torque_per_joint is None else [float(value) for value in _as_list(max_torque_per_joint)],
+        joint_pos_limit=None if joint_pos_limit is None else [float(value) for value in _as_list(joint_pos_limit)],
+        joint_pos_limit_margin=joint_pos_limit_margin,
+        joint_vel_limit=None if joint_vel_limit is None else [float(value) for value in _as_list(joint_vel_limit)],
+        joint_vel_limit_margin=joint_vel_limit_margin,
+        joint_velocity_lpf_alpha=joint_velocity_lpf_alpha,
+        joint_effort_like_lpf_alpha=joint_effort_like_lpf_alpha,
+    )
+
+    return GoatModel(goat_model_config)
+
+
+def build_control_pipeline_from_yaml(yaml_path: str) -> Tuple[GoatModel, ControlPipeline]:
+    """Build (GoatModel, ControlPipeline) from YAML config.
+
+    This is the simulation version — no CAN drivers, no motor state collector,
+    no calibration manager. State is provided externally via ROS2 topics.
+    """
+    goat_model = build_goat_model_from_yaml(yaml_path)
+
+    # Controllers
+    pd_controller_config = goat_model.build_pd_controller_config()
+    pd_joint_controller = PDJointController(pd_controller_config)
+
+    wheel_pi_controller_config = goat_model.build_wheel_pi_controller_config()
+    wheel_pi_controller = WheelPIController(wheel_pi_controller_config, num_joints=goat_model.num_joints)
+
+    # Safety limiter
+    safety_limiter_config = goat_model.build_safety_limiter_config()
+    torque_safety_limiter = TorqueSafetyLimiter(safety_limiter_config)
+    joint_safety_limiter = JointSafetyLimiter(safety_limiter_config)
+
+    # Pipeline
+    control_pipeline = ControlPipeline.build_from_goat_model(
+        goat_model=goat_model,
+        pd_joint_controller=pd_joint_controller,
+        torque_safety_limiter=torque_safety_limiter,
+        joint_safety_limiter=joint_safety_limiter,
+        wheel_pi_controller=wheel_pi_controller,
+    )
+
+    return goat_model, control_pipeline
