@@ -1,0 +1,3 @@
+[console_scripts]
+test_topic_io = GOAT.test_topic_io:main
+

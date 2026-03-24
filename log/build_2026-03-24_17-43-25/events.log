@@ -1,0 +1,51 @@
+[0.000000] (-) TimerEvent: {}
+[0.001110] (GOAT) JobQueued: {'identifier': 'GOAT', 'dependencies': OrderedDict()}
+[0.001133] (GOAT) JobStarted: {'identifier': 'GOAT'}
+[0.099697] (-) TimerEvent: {}
+[0.199975] (-) TimerEvent: {}
+[0.300258] (-) TimerEvent: {}
+[0.400540] (-) TimerEvent: {}
+[0.500802] (-) TimerEvent: {}
+[0.601051] (-) TimerEvent: {}
+[0.670185] (GOAT) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/GOAT', 'build', '--build-base', '/home/grape4314/isaac_ros2/build/GOAT/build', 'install', '--record', '/home/grape4314/isaac_ros2/build/GOAT/install.log', '--single-version-externally-managed', 'install_data'], 'cwd': '/home/grape4314/isaac_ros2/src/GOAT', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'grape4314', 'ROS_APT_SOURCE_VERSION': '1.1.0', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'WT_PROFILE_ID': '{732991c6-a592-53fe-9f8b-7513d5e63063}', 'HOME': '/home/grape4314', 'OLDPWD': '/home/grape4314/isaac_ros2/src/GOAT', 'ROS_PYTHON_VERSION': '3', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'WSL_DISTRO_NAME': 'Ubuntu-22.04', 'WAYLAND_DISPLAY': 'wayland-0', 'ROS_DISTRO': 'humble', 'LOGNAME': 'grape4314', 'NAME': 'DESKTOP-19PFIPC', 'WSL_INTEROP': '/run/WSL/605_interop', 'PULSE_SERVER': 'unix:/mnt/wslg/PulseServer', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'TERM': 'xterm-256color', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/mnt/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/mnt/c/Program Files/MATLAB/R2024b/bin:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/nodejs/:/mnt/c/texlive/2025/bin/windows:/mnt/c/Program Files/gs/gs10.06.0/bin:/mnt/c/Users/grape/.local/bin:/mnt/c/Users/grape/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/grape/AppData/Roaming/npm:/mnt/c/Users/grape/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin', 'FASTRTPS_DEFAULT_PROFILES_FILE': '/home/grape4314/.ros/fastdds.xml', 'WT_SESSION': 'fde15c43-a96f-494b-a3e1-f0181450ab3f', 'XDG_RUNTIME_DIR': '/run/user/1000/', 'DISPLAY': ':0', 'LANG': 'en_US.UTF-8', 'RMW_IMPLEMENTATION': 'rmw_fastrtps_cpp', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'PWD': '/home/grape4314/isaac_ros2/build/GOAT', 'XDG_DATA_DIRS': '/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/grape4314/isaac_ros2/build/GOAT/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'WSL2_GUI_APPS_ENABLED': '1', 'HOSTTYPE': 'x86_64', 'WSLENV': 'WT_SESSION:WT_PROFILE_ID:'}, 'shell': False}
+[0.701118] (-) TimerEvent: {}
+[0.801370] (-) TimerEvent: {}
+[0.843222] (GOAT) StdoutLine: {'line': b'running egg_info\n'}
+[0.843623] (GOAT) StdoutLine: {'line': b'creating ../../build/GOAT/GOAT.egg-info\n'}
+[0.844271] (GOAT) StdoutLine: {'line': b'writing ../../build/GOAT/GOAT.egg-info/PKG-INFO\n'}
+[0.844721] (GOAT) StdoutLine: {'line': b'writing dependency_links to ../../build/GOAT/GOAT.egg-info/dependency_links.txt\n'}
+[0.844963] (GOAT) StdoutLine: {'line': b'writing entry points to ../../build/GOAT/GOAT.egg-info/entry_points.txt\n'}
+[0.845259] (GOAT) StdoutLine: {'line': b'writing requirements to ../../build/GOAT/GOAT.egg-info/requires.txt\n'}
+[0.845392] (GOAT) StdoutLine: {'line': b'writing top-level names to ../../build/GOAT/GOAT.egg-info/top_level.txt\n'}
+[0.845743] (GOAT) StdoutLine: {'line': b"writing manifest file '../../build/GOAT/GOAT.egg-info/SOURCES.txt'\n"}
+[0.846799] (GOAT) StdoutLine: {'line': b"reading manifest file '../../build/GOAT/GOAT.egg-info/SOURCES.txt'\n"}
+[0.847253] (GOAT) StdoutLine: {'line': b"writing manifest file '../../build/GOAT/GOAT.egg-info/SOURCES.txt'\n"}
+[0.847558] (GOAT) StdoutLine: {'line': b'running build\n'}
+[0.847617] (GOAT) StdoutLine: {'line': b'running build_py\n'}
+[0.847670] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/build/GOAT/build\n'}
+[0.847959] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/build/GOAT/build/lib\n'}
+[0.848418] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/build/GOAT/build/lib/GOAT\n'}
+[0.848910] (GOAT) StdoutLine: {'line': b'copying GOAT/test_topic_io.py -> /home/grape4314/isaac_ros2/build/GOAT/build/lib/GOAT\n'}
+[0.849097] (GOAT) StdoutLine: {'line': b'copying GOAT/__init__.py -> /home/grape4314/isaac_ros2/build/GOAT/build/lib/GOAT\n'}
+[0.849303] (GOAT) StdoutLine: {'line': b'running install\n'}
+[0.849581] (GOAT) StdoutLine: {'line': b'running install_lib\n'}
+[0.850045] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT\n'}
+[0.850427] (GOAT) StdoutLine: {'line': b'copying /home/grape4314/isaac_ros2/build/GOAT/build/lib/GOAT/test_topic_io.py -> /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT\n'}
+[0.850599] (GOAT) StdoutLine: {'line': b'copying /home/grape4314/isaac_ros2/build/GOAT/build/lib/GOAT/__init__.py -> /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT\n'}
+[0.851059] (GOAT) StdoutLine: {'line': b'byte-compiling /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT/test_topic_io.py to test_topic_io.cpython-310.pyc\n'}
+[0.852666] (GOAT) StdoutLine: {'line': b'byte-compiling /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT/__init__.py to __init__.cpython-310.pyc\n'}
+[0.852961] (GOAT) StdoutLine: {'line': b'running install_data\n'}
+[0.853191] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/install/GOAT/share/ament_index\n'}
+[0.853496] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/install/GOAT/share/ament_index/resource_index\n'}
+[0.854200] (GOAT) StdoutLine: {'line': b'creating /home/grape4314/isaac_ros2/install/GOAT/share/ament_index/resource_index/packages\n'}
+[0.854562] (GOAT) StdoutLine: {'line': b'copying resource/GOAT -> /home/grape4314/isaac_ros2/install/GOAT/share/ament_index/resource_index/packages\n'}
+[0.854711] (GOAT) StdoutLine: {'line': b'copying package.xml -> /home/grape4314/isaac_ros2/install/GOAT/share/GOAT\n'}
+[0.854858] (GOAT) StdoutLine: {'line': b'running install_egg_info\n'}
+[0.855943] (GOAT) StdoutLine: {'line': b'Copying ../../build/GOAT/GOAT.egg-info to /home/grape4314/isaac_ros2/install/GOAT/lib/python3.10/site-packages/GOAT-0.0.0-py3.10.egg-info\n'}
+[0.857961] (GOAT) StdoutLine: {'line': b'running install_scripts\n'}
+[0.872063] (GOAT) StdoutLine: {'line': b'Installing test_topic_io script to /home/grape4314/isaac_ros2/install/GOAT/lib/GOAT\n'}
+[0.872775] (GOAT) StdoutLine: {'line': b"writing list of installed files to '/home/grape4314/isaac_ros2/build/GOAT/install.log'\n"}
+[0.889087] (GOAT) CommandEnded: {'returncode': 0}
+[0.901480] (-) TimerEvent: {}
+[0.903111] (GOAT) JobEnded: {'identifier': 'GOAT', 'rc': 0}
+[0.903981] (-) EventReactorShutdown: {}

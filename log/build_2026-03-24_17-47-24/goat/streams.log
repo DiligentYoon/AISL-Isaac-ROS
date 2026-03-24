@@ -1,0 +1,22 @@
+[0.476s] Invoking command in '/home/grape4314/isaac_ros2/src/goat': PYTHONPATH=/home/grape4314/isaac_ros2/build/goat/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/grape4314/isaac_ros2/install/goat/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/goat build --build-base /home/grape4314/isaac_ros2/build/goat/build install --record /home/grape4314/isaac_ros2/build/goat/install.log --single-version-externally-managed install_data
+[0.645s] running egg_info
+[0.646s] writing ../../build/goat/goat.egg-info/PKG-INFO
+[0.646s] writing dependency_links to ../../build/goat/goat.egg-info/dependency_links.txt
+[0.646s] writing entry points to ../../build/goat/goat.egg-info/entry_points.txt
+[0.646s] writing requirements to ../../build/goat/goat.egg-info/requires.txt
+[0.646s] writing top-level names to ../../build/goat/goat.egg-info/top_level.txt
+[0.648s] reading manifest file '../../build/goat/goat.egg-info/SOURCES.txt'
+[0.648s] writing manifest file '../../build/goat/goat.egg-info/SOURCES.txt'
+[0.648s] running build
+[0.648s] running build_py
+[0.649s] running install
+[0.649s] running install_lib
+[0.650s] running install_data
+[0.650s] copying resource/goat -> /home/grape4314/isaac_ros2/install/goat/share/ament_index/resource_index/packages
+[0.650s] copying package.xml -> /home/grape4314/isaac_ros2/install/goat/share/goat
+[0.650s] running install_egg_info
+[0.651s] Copying ../../build/goat/goat.egg-info to /home/grape4314/isaac_ros2/install/goat/lib/python3.10/site-packages/goat-0.0.0-py3.10.egg-info
+[0.653s] running install_scripts
+[0.668s] Installing test_topic_io script to /home/grape4314/isaac_ros2/install/goat/lib/goat
+[0.669s] writing list of installed files to '/home/grape4314/isaac_ros2/build/goat/install.log'
+[0.686s] Invoked command in '/home/grape4314/isaac_ros2/src/goat' returned '0': PYTHONPATH=/home/grape4314/isaac_ros2/build/goat/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/grape4314/isaac_ros2/install/goat/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/goat build --build-base /home/grape4314/isaac_ros2/build/goat/build install --record /home/grape4314/isaac_ros2/build/goat/install.log --single-version-externally-managed install_data
