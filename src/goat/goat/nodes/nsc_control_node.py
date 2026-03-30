@@ -221,8 +221,8 @@ class NSCTesterNode(Node):
         self.tau_cmd[self.wheel_L_joint_id] = wheel_tau
         self.tau_cmd[self.wheel_R_joint_id] = -wheel_tau
 
-        self.tau_cmd[self.wheel_L_joint_id:] = np.clip(self.tau_cmd[self.wheel_L_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
-        self.tau_cmd[self.wheel_R_joint_id:] = np.clip(self.tau_cmd[self.wheel_R_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
+        self.tau_cmd[self.wheel_L_joint_id] = np.clip(self.tau_cmd[self.wheel_L_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
+        self.tau_cmd[self.wheel_R_joint_id] = np.clip(self.tau_cmd[self.wheel_R_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
 
         # Publish joint command : Pin Ids -> ROS Ids
         # joint_command = JointState()
