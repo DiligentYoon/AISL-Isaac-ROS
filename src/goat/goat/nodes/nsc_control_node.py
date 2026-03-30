@@ -22,14 +22,14 @@ class NSCTesterNode(Node):
 
         # ========== Pinocchio Name Index ========== #
         print("model.names:")
-        for i, name in enumerate(model.names):
+        for i, name in enumerate(self.model.names):
             print(i, name)
 
-        print("\nidx_qs:", model.idx_qs)
-        print("idx_vs:", model.idx_vs)
+        print("\nidx_qs:", self.model.idx_qs)
+        print("idx_vs:", self.model.idx_vs)
 
         print("\nJoint list:")
-        for i, j in enumerate(model.joints):
+        for i, j in enumerate(self.model.joints):
             print(i, j)
 
         # model.names:
@@ -91,8 +91,8 @@ class NSCTesterNode(Node):
         self.ros_name_to_idx = {name: i for i, name in enumerate(self.ros_joint_names)}
         self.pin_name_to_idx = {name: i for i, name in enumerate(self.pin_joint_names)}
 
-        self.ros_to_pin_ids = [self.pin_name_to_idx[name] for name in self.ros_joint_names]
-        self.pin_to_ros_ids = [self.pin_joint_names.index(name) for name in self.ros_joint_names]
+        self.ros_to_pin_ids = [0, 2, 4, 6, 1, 3, 5, 7] # ROS[self.ros_to_pin_ids] = Pin Ids
+        self.pin_to_ros_ids = [0, 4, 1, 5, 2, 6, 3, 7] # Pin[self.pin_to_ros_ids] = ROS Ids
 
         self.wheel_L_joint_id = self.pin_name_to_idx['wheel_L_Joint']   # 3 : Left wheel index in pinocchio-actuator-order
         self.wheel_R_joint_id = self.pin_name_to_idx['wheel_R_Joint']   # 7 : Right wheel index in pinocchio-actuator-order
@@ -154,27 +154,14 @@ class NSCTesterNode(Node):
         self.timer = self.create_timer(self.dt, self.control_loop)
 
     def joint_callback(self, msg):
-        # ROS-order -> Pinocchio Order 
-        q   = np.zeros(msg.position)
-        v   = np.zeros(msg.velocity)
-        tau = np.zeros(msg.effort)
-
-        for ros_i, name in enumerate(msg.name):
-            if name not in self.pin_name_to_idx:
-                continue
-
-            pin_i = self.pin_name_to_idx[name]
-
-            if ros_i < len(msg.position):
-                q[pin_i] = msg.position[ros_i]
-            if ros_i < len(msg.velocity):
-                v[pin_i] = msg.velocity[ros_i]
-            if ros_i < len(msg.effort):
-                tau[pin_i] = msg.effort[ros_i]
-            
-            self.joint_q_curr = q
-            self.joint_v_curr = v
-            self.tau_applied = tau
+        # ROS Ids -> Pinocchio Ids
+        q = np.array(msg.position)
+        v = np.array(msg.velocity)
+        tau = np.array(msg.effort)
+        
+        self.joint_q_curr = q[self.ros_to_pin_ids]
+        self.joint_v_curr = v[self.ros_to_pin_ids]
+        self.tau_applied = tau[self.ros_to_pin_ids]
 
     def imu_callback(self, msg):
         self.base_a_curr = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
@@ -234,16 +221,16 @@ class NSCTesterNode(Node):
         self.tau_cmd[self.wheel_L_joint_id] = wheel_tau
         self.tau_cmd[self.wheel_R_joint_id] = -wheel_tau
 
-        self.tau_cmd[self.wheel_L_joint_id:] = np.clip(self.tau_cmd[self.wheel_L_joint_id:], -self.wheel_tau_limit, self.wheel_tau_limit)
-        self.tau_cmd[self.wheel_R_joint_id:] = np.clip(self.tau_cmd[self.wheel_R_joint_id:], -self.wheel_tau_limit, self.wheel_tau_limit)
+        self.tau_cmd[self.wheel_L_joint_id:] = np.clip(self.tau_cmd[self.wheel_L_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
+        self.tau_cmd[self.wheel_R_joint_id:] = np.clip(self.tau_cmd[self.wheel_R_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
 
-        # Publish joint command
+        # Publish joint command : Pin Ids -> ROS Ids
         # joint_command = JointState()
         # joint_command.header.stamp = self.get_clock().now().to_msg()
         # joint_command.name = [
         #     'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
         # ]
-        # joint_command.effort = self.tau_cmd[self.pin_to_ros_mapping_ids].tolist()
+        # joint_command.effort = self.tau_cmd[self.pin_to_ros_ids].tolist()
         # self.command_publisher.publish(joint_command)
 
 
