@@ -145,6 +145,19 @@ reset() → pause() → wait_for_first_command()
 | 6     | wheel_L_Joint  | PI         | speed control      |
 | 7     | wheel_R_Joint  | PI         | speed control      |
 
+## Pinocchio & ROS 간 Index Mapping Table
+| joint name    | ROS-order | PIN-actuator-order | q idx | v idx | pin joint-tree idx |
+| ------------- | --------: | -----------------: | ----: | ----: | -----------------: |
+| hip_L_Joint   |         0 |                  0 |     7 |     6 |                  2 |
+| hip_R_Joint   |         1 |                  4 |    11 |    10 |                  6 |
+| thigh_L_Joint |         2 |                  1 |     8 |     7 |                  3 |
+| thigh_R_Joint |         3 |                  5 |    12 |    11 |                  7 |
+| knee_L_Joint  |         4 |                  2 |     9 |     8 |                  4 |
+| knee_R_Joint  |         5 |                  6 |    13 |    12 |                  8 |
+| wheel_L_Joint |         6 |                  3 |    10 |     9 |                  5 |
+| wheel_R_Joint |         7 |                  7 |    14 |    13 |                  9 |
+
+
 - **DOF**: 8개 — `hip_L/R`, `thigh_L/R`, `knee_L/R`, `wheel_L/R`
 - **무릎 기어비**: 0.5:1 (나머지 관절 1:1)
 - **토크 상수**: 0.2616 Nm/A (다리), 0.2478 Nm/A (바퀴)

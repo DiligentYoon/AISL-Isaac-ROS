@@ -3,32 +3,112 @@ from rclpy.node import Node
 from pinocchio.utils import *
 from tf2_ros import Buffer, TransformListener
 from sensor_msgs.msg import JointState, Imu
+from nav_msgs.msg import Odometry
 
 import numpy as np
 import pinocchio as pin
 import math
-
 
 class NSCTesterNode(Node):
     def __init__(self):
         super().__init__('nsc_tester_node')
 
         # Pinocchio
-        urdf_path = '/home/oksusu/Repos/GOAT/Realworld/src/goat_description/urdf/WF_GOAT.urdf'
+        # urdf_path = '/home/oksusu/Repos/GOAT/Realworld/src/goat_description/urdf/WF_GOAT.urdf'
+        urdf_path = '/home/grape4314/AISL-Isaac-ROS/src/goat_isaac_sim/assets/GOAT/WF_GOAT/urdf/WF_GOAT.urdf'
         self.model = pin.buildModelFromUrdf(urdf_path, pin.JointModelFreeFlyer())
+        self.model_names = list(self.model.names)
         self.data = self.model.createData()
-        self.wheel_radius = 72.75E-03
+
+        # ========== Pinocchio Name Index ========== #
+        print("model.names:")
+        for i, name in enumerate(model.names):
+            print(i, name)
+
+        print("\nidx_qs:", model.idx_qs)
+        print("idx_vs:", model.idx_vs)
+
+        print("\nJoint list:")
+        for i, j in enumerate(model.joints):
+            print(i, j)
+
+        # model.names:
+            # 0 universe
+            # 1 root_joint
+            # 2 hip_L_Joint
+            # 3 thigh_L_Joint
+            # 4 knee_L_Joint
+            # 5 wheel_L_Joint
+            # 6 hip_R_Joint
+            # 7 thigh_R_Joint
+            # 8 knee_R_Joint
+            # 9 wheel_R_Joint
         
+        # generalized positions: 
+            # base_position_xyz(3),
+            # base_quaternion_xyzw(4),
+            # hip_L,
+            # thigh_L,
+            # knee_L,
+            # wheel_L,
+            # hip_R,
+            # thigh_R,
+            # knee_R,
+            # wheel_R
+        
+        # generalized velocitys:
+            # base_twist(6),
+            # hip_L_dot,
+            # thigh_L_dot,
+            # knee_L_dot,
+            # wheel_L_dot,
+            # hip_R_dot,
+            # thigh_R_dot,
+            # knee_R_dot,
+            # wheel_R_dot
+
+        # ========= ROS Topic Name Index ========== #
+        # name:
+            # hip_L_Joint
+            # hip_R_Joint
+            # thigh_L_Joint
+            # thigh_R_Joint
+            # knee_L_Joint
+            # knee_R_Joint
+            # wheel_L_Joint
+            # wheel_R_Joint
+
+        # ========== Name Index Mapping =========== #
+        self.ros_joint_names = [
+            'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint',
+            'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
+        ]
+
+        self.pin_joint_names = [
+            'hip_L_Joint', 'thigh_L_Joint', 'knee_L_Joint', 'wheel_L_Joint',
+            'hip_R_Joint', 'thigh_R_Joint', 'knee_R_Joint', 'wheel_R_Joint'
+        ]
+        self.ros_name_to_idx = {name: i for i, name in enumerate(self.ros_joint_names)}
+        self.pin_name_to_idx = {name: i for i, name in enumerate(self.pin_joint_names)}
+
+        self.ros_to_pin_ids = [self.pin_name_to_idx[name] for name in self.ros_joint_names]
+        self.pin_to_ros_ids = [self.pin_joint_names.index(name) for name in self.ros_joint_names]
+
+        self.wheel_L_joint_id = self.pin_name_to_idx['wheel_L_Joint']   # 3 : Left wheel index in pinocchio-actuator-order
+        self.wheel_R_joint_id = self.pin_name_to_idx['wheel_R_Joint']   # 7 : Right wheel index in pinocchio-actuator-order
+
+        self.wheel_L_joint_pin_id = self.model_names.index('wheel_L_Joint') # 5 : Left wheel index in pinocchio-joint-order
+        self.wheel_R_joint_pin_id = self.model_names.index('wheel_R_Joint') # 9 : Right wheel index in pinocchio-joint-order
+
+        self.wheel_radius = 72.75E-03
         self.nv = self.model.nv                         # Velocity dim (6 + n)
         self.nq = self.model.nq                         # Position dim (7 + n)
         self.n_joints = self.nv - 6                     # Num of Motors
-        self.wheel_L_joint_id = 6                       # Left wheel index
-        self.wheel_R_joint_id = 7                       # Right wheel index
         self.joint_tau_limit = 4.5                      # Nm
         self.wheel_tau_limit = 2.5                      # Nm
 
         # Parameters
-        self.dt = 0.01
+        self.dt = 1/200
         self.Kp = np.eye(self.n_joints) * 3.0
         self.Kd = np.eye(self.n_joints) * 1.0
         self.Ko = np.eye(self.nv) * 20.0                                    # MOB gain (Base 6 + Joints n)
@@ -68,19 +148,42 @@ class NSCTesterNode(Node):
         # Subscriber
         self.joint_state_subscriber = self.create_subscription(JointState, '/joint_state', self.joint_callback, 10)
         self.imu_state_subscriber = self.create_subscription(Imu, '/imu', self.imu_callback, 10)
+        self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+
 
         self.timer = self.create_timer(self.dt, self.control_loop)
 
     def joint_callback(self, msg):
-        self.joint_q_curr = np.array(msg.position)
-        self.joint_v_curr = np.array(msg.velocity)
-        self.torque_applied = np.array(msg.effort)
+        # ROS-order -> Pinocchio Order 
+        q   = np.zeros(msg.position)
+        v   = np.zeros(msg.velocity)
+        tau = np.zeros(msg.effort)
+
+        for ros_i, name in enumerate(msg.name):
+            if name not in self.pin_name_to_idx:
+                continue
+
+            pin_i = self.pin_name_to_idx[name]
+
+            if ros_i < len(msg.position):
+                q[pin_i] = msg.position[ros_i]
+            if ros_i < len(msg.velocity):
+                v[pin_i] = msg.velocity[ros_i]
+            if ros_i < len(msg.effort):
+                tau[pin_i] = msg.effort[ros_i]
+            
+            self.joint_q_curr = q
+            self.joint_v_curr = v
+            self.tau_applied = tau
 
     def imu_callback(self, msg):
-        self.base_linear_v_curr = np.zeros(3)               # NOTE: Linear velocity 받아와야됨
         self.base_a_curr = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
         self.base_w_curr = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
         self.base_quat_curr = np.array([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
+
+    def odom_callback(self, msg):
+        self.base_linear_v_curr = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]) # In body frame
+
 
     def control_loop(self):
         # Stack base + joint state
@@ -132,15 +235,16 @@ class NSCTesterNode(Node):
         self.tau_cmd[self.wheel_R_joint_id] = -wheel_tau
 
         self.tau_cmd[self.wheel_L_joint_id:] = np.clip(self.tau_cmd[self.wheel_L_joint_id:], -self.wheel_tau_limit, self.wheel_tau_limit)
+        self.tau_cmd[self.wheel_R_joint_id:] = np.clip(self.tau_cmd[self.wheel_R_joint_id:], -self.wheel_tau_limit, self.wheel_tau_limit)
 
         # Publish joint command
-        joint_command = JointState()
-        joint_command.header.stamp = self.get_clock().now().to_msg()
-        joint_command.name = [
-            'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
-        ]
-        joint_command.effort = self.tau_cmd.tolist()
-        self.command_publisher.publish(joint_command)
+        # joint_command = JointState()
+        # joint_command.header.stamp = self.get_clock().now().to_msg()
+        # joint_command.name = [
+        #     'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
+        # ]
+        # joint_command.effort = self.tau_cmd[self.pin_to_ros_mapping_ids].tolist()
+        # self.command_publisher.publish(joint_command)
 
 
 ### =============================== Auxilary Functions =============================== ###
@@ -153,13 +257,13 @@ class NSCTesterNode(Node):
         com_total = self.data.com[0]      # Total mass position
         vcom_total = self.data.vcom[0]    # Total mass velocity 
 
-        m_wheel_L = self.data.mass[self.wheel_L_joint_id]
-        com_wheel_L = self.data.com[self.wheel_L_joint_id]
-        vcom_wheel_L = self.data.vcom[self.wheel_L_joint_id]
+        m_wheel_L = self.data.mass[self.wheel_L_joint_pin_id]
+        com_wheel_L = self.data.com[self.wheel_L_joint_pin_id]
+        vcom_wheel_L = self.data.vcom[self.wheel_L_joint_pin_id]
 
-        m_wheel_R = self.data.mass[self.wheel_R_joint_id]
-        com_wheel_R = self.data.com[self.wheel_R_joint_id]
-        vcom_wheel_R = self.data.vcom[self.wheel_R_joint_id]
+        m_wheel_R = self.data.mass[self.wheel_R_joint_pin_id]
+        com_wheel_R = self.data.com[self.wheel_R_joint_pin_id]
+        vcom_wheel_R = self.data.vcom[self.wheel_R_joint_pin_id]
 
         # Body's property exclude wheels
         M_body = M_total - m_wheel_L - m_wheel_R
@@ -211,7 +315,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = NSCTesterNode()
 
-    node.control_loop()
+    # node.control_loop()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

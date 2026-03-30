@@ -23,6 +23,7 @@ setup(
         'console_scripts': [
             'topic_io_node = goat.nodes.topic_io_node:main',
             'control_node = goat.nodes.control_node:main',
+            'nsc_control_node = goat.nodes.nsc_control_node:main'
         ],
     },
 )
