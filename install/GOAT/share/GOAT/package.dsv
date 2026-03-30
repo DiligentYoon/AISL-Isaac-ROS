@@ -1,6 +1,0 @@
-source;share/GOAT/hook/pythonpath.ps1
-source;share/GOAT/hook/pythonpath.dsv
-source;share/GOAT/hook/pythonpath.sh
-source;share/GOAT/hook/ament_prefix_path.ps1
-source;share/GOAT/hook/ament_prefix_path.dsv
-source;share/GOAT/hook/ament_prefix_path.sh

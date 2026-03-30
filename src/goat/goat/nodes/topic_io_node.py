@@ -82,7 +82,7 @@ class TopicIOTester(Node):
         if not hasattr(self, "_js_count"):
             self._js_count = 0
         self._js_count += 1
-        if self._js_count % 400 == 0:
+        if self._js_count % 100 == 0:
             np.set_printoptions(precision=4, suppress=True)
             self.get_logger().info(
                 f"[/joint_states] pos(rad)={pos}  vel(rad/s)={vel}"
@@ -110,7 +110,7 @@ class TopicIOTester(Node):
         if not hasattr(self, "_imu_count"):
             self._imu_count = 0
         self._imu_count += 1
-        if self._imu_count % 400 == 0:
+        if self._imu_count % 100 == 0:
             o = msg.orientation
             av = msg.angular_velocity
             self.get_logger().info(
