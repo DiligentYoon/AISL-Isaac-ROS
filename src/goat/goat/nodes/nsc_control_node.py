@@ -6,6 +6,7 @@ from sensor_msgs.msg import JointState, Imu
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float64MultiArray
 
+import time
 import numpy as np
 import pinocchio as pin
 import math
@@ -116,10 +117,10 @@ class NSCTesterNode(Node):
         self.Kp = np.eye(self.n_joints) * 0.1
         self.Kd = np.eye(self.n_joints) * 0.05
         self.Ko = np.eye(self.nv) * 1.0                                    # MOB gain (Base 6 + Joints n)
-        self.wheel_Kp_att = 2.0
-        self.wheel_Kd_att = 0.5
-        self.wheel_Kp_pos = 2.0
-        self.wheel_Kd_pos = 0.5
+        self.wheel_Kp_att = 0.1
+        self.wheel_Kd_att = 0.05
+        self.wheel_Kp_pos = 0.1
+        self.wheel_Kd_pos = 0.05
 
         # State variables
         self.q_curr = np.zeros(self.nq)
@@ -146,8 +147,8 @@ class NSCTesterNode(Node):
         self.tau_external = np.zeros(self.nv)                               # Residual
 
         # TF subscriber
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        # self.tf_buffer = Buffer()
+        # self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # Publisher
         self.command_publisher = self.create_publisher(JointState, '/joint_command', 10)
@@ -215,14 +216,14 @@ class NSCTesterNode(Node):
 
         # print(f"Position Error : {q_err.tolist()}")
 
-        # Total torque (RNEA + Feedback + External)
+        # # Total torque (RNEA + Feedback + External)
         self.tau_cmd = tau_rnea_joint + tau_pd - self.joint_tau_external
 
-        # Clipping
+        # # Clipping
         self.tau_cmd = np.clip(self.tau_cmd, -self.joint_tau_limit, self.joint_tau_limit)
 
-        ## ============== Wheel control ================ ##
-        # State
+        # ## ============== Wheel control ================ ##
+        # # State
         theta, theta_dot, L = self.compute_com_and_theta(self.q_curr, self.v_curr)
 
         print(f"theta : {theta}, theta_dot : {theta_dot}, L : {L}")
@@ -241,19 +242,15 @@ class NSCTesterNode(Node):
         # print(f"Torque Command : {self.tau_cmd}")
 
         # Publish joint command : Pin Ids -> ROS Ids
-        # joint_command = JointState()
-        # joint_command.header.stamp = self.get_clock().now().to_msg()
-        # joint_command.name = [
-        #     'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
-        # ]
-        # joint_command.effort = self.tau_cmd[self.pin_to_ros_ids].tolist()
-        # self.command_publisher.publish(joint_command)
+        joint_command = JointState()
+        joint_command.header.stamp = self.get_clock().now().to_msg()
+        joint_command.name = [
+            'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
+        ]
+        joint_command.effort = self.tau_cmd[self.pin_to_ros_ids].tolist()
+        self.command_publisher.publish(joint_command)
 
         # Publish debug signals for plotter
-        # Layout (37 floats, torques in PIN order):
-        #   [0]     theta         [1] theta_dot   [2] theta_cmd  [3] L  [4] wheel_tau
-        #   [5:13]  tau_cmd       [13:21] tau_rnea
-        #   [21:29] tau_pd        [29:37] tau_ext (MOB)
         debug_msg = Float64MultiArray()
         debug_msg.data = [
             float(theta), float(theta_dot), float(theta_cmd), float(L), float(wheel_tau),
@@ -338,10 +335,31 @@ class NSCTesterNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = NSCTesterNode()
+    
+    # AISL Computer에서 Test 해보기
 
-    # node.control_loop()
+    # try:
+    #     rclpy.spin(node)
+    # except KeyboardInterrupt:
+    #     pass
+    # finally:
+    #     node.destroy_node()
+    #     rclpy.shutdown()
+
+    dt = node.dt
+    next_t = time.monotonic()
+
     try:
-        rclpy.spin(node)
+        while rclpy.ok():
+            rclpy.spin_once(node, timeout_sec=0.0)   
+            node.control_loop()                      
+
+            next_t += dt
+            sleep_time = next_t - time.monotonic()
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            else:
+                next_t = time.monotonic()
     except KeyboardInterrupt:
         pass
     finally:

@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import find_packages, setup
 
 package_name = 'goat'
@@ -11,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/config', ['config/sim_goat_config.yaml']),
+        ('share/' + package_name + '/launch', glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -22,7 +25,9 @@ setup(
         'console_scripts': [
             'topic_io_node = goat.nodes.topic_io_node:main',
             'control_node = goat.nodes.control_node:main',
-            'nsc_control_node = goat.nodes.nsc_control_node:main'
+            'nsc_control_node = goat.nodes.nsc_control_node:main',
+            'nsc_plotter = goat.nodes.nsc_plotter:main',
+            'test = goat.nodes.test:main'
         ],
     },
 )
