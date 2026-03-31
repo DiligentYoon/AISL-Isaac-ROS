@@ -18,7 +18,6 @@ setup(
     maintainer_email='user@todo.todo',
     description='ROS2 Isaac Sim GOAT control package',
     license='TODO',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'topic_io_node = goat.nodes.topic_io_node:main',

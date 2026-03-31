@@ -4,10 +4,13 @@ from pinocchio.utils import *
 from tf2_ros import Buffer, TransformListener
 from sensor_msgs.msg import JointState, Imu
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Float64MultiArray
 
 import numpy as np
 import pinocchio as pin
 import math
+
+TARGET_JOINT_ANGLE = [0.0, 0.738, 1.462, 0.0, 0.0, -0.738, -1.462, 0.0] # Pinnochio convention : [hip_L, thigh_L, knee_L, wheel_L, hip_R, thigh_R, knee_R, wheel_R]
 
 class NSCTesterNode(Node):
     def __init__(self):
@@ -33,16 +36,16 @@ class NSCTesterNode(Node):
             print(i, j)
 
         # model.names:
-            # 0 universe
-            # 1 root_joint
-            # 2 hip_L_Joint
-            # 3 thigh_L_Joint
-            # 4 knee_L_Joint
-            # 5 wheel_L_Joint
-            # 6 hip_R_Joint
-            # 7 thigh_R_Joint
-            # 8 knee_R_Joint
-            # 9 wheel_R_Joint
+            # universe
+            # root_joint
+            # hip_L_Joint
+            # thigh_L_Joint
+            # knee_L_Joint
+            # wheel_L_Joint
+            # hip_R_Joint
+            # thigh_R_Joint
+            # knee_R_Joint
+            # wheel_R_Joint
         
         # generalized positions: 
             # base_position_xyz(3),
@@ -56,7 +59,7 @@ class NSCTesterNode(Node):
             # knee_R,
             # wheel_R
         
-        # generalized velocitys:
+        # generalized velocities:
             # base_twist(6),
             # hip_L_dot,
             # thigh_L_dot,
@@ -100,6 +103,7 @@ class NSCTesterNode(Node):
         self.wheel_L_joint_pin_id = self.model_names.index('wheel_L_Joint') # 5 : Left wheel index in pinocchio-joint-order
         self.wheel_R_joint_pin_id = self.model_names.index('wheel_R_Joint') # 9 : Right wheel index in pinocchio-joint-order
 
+        # Robot parameters
         self.wheel_radius = 72.75E-03
         self.nv = self.model.nv                         # Velocity dim (6 + n)
         self.nq = self.model.nq                         # Position dim (7 + n)
@@ -109,13 +113,13 @@ class NSCTesterNode(Node):
 
         # Parameters
         self.dt = 1/200
-        self.Kp = np.eye(self.n_joints) * 3.0
-        self.Kd = np.eye(self.n_joints) * 1.0
-        self.Ko = np.eye(self.nv) * 20.0                                    # MOB gain (Base 6 + Joints n)
-        self.wheel_Kp_att = 0
-        self.wheel_Kd_att = 0
-        self.wheel_Kp_pos = 0
-        self.wheel_Kd_pos = 0
+        self.Kp = np.eye(self.n_joints) * 0.1
+        self.Kd = np.eye(self.n_joints) * 0.05
+        self.Ko = np.eye(self.nv) * 1.0                                    # MOB gain (Base 6 + Joints n)
+        self.wheel_Kp_att = 2.0
+        self.wheel_Kd_att = 0.5
+        self.wheel_Kp_pos = 2.0
+        self.wheel_Kd_pos = 0.5
 
         # State variables
         self.q_curr = np.zeros(self.nq)
@@ -130,6 +134,9 @@ class NSCTesterNode(Node):
         self.base_a_curr = np.zeros(3)                                      # Base linear acceleration
         self.q_ref = np.zeros(self.nq)                                      # Reference joint position
         self.a_ref = np.zeros(self.nv)                                      # Reference joint acceleration
+
+        # Reference assign
+        self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
         
         self.tau_cmd = np.zeros(self.n_joints)
         self.tau_applied = np.zeros(self.n_joints)
@@ -144,14 +151,15 @@ class NSCTesterNode(Node):
 
         # Publisher
         self.command_publisher = self.create_publisher(JointState, '/joint_command', 10)
+        self.debug_publisher = self.create_publisher(Float64MultiArray, '/nsc_debug', 10)
 
         # Subscriber
-        self.joint_state_subscriber = self.create_subscription(JointState, '/joint_state', self.joint_callback, 10)
+        self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
         self.imu_state_subscriber = self.create_subscription(Imu, '/imu', self.imu_callback, 10)
         self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
 
-
         self.timer = self.create_timer(self.dt, self.control_loop)
+
 
     def joint_callback(self, msg):
         # ROS Ids -> Pinocchio Ids
@@ -163,10 +171,12 @@ class NSCTesterNode(Node):
         self.joint_v_curr = v[self.ros_to_pin_ids]
         self.tau_applied = tau[self.ros_to_pin_ids]
 
+
     def imu_callback(self, msg):
         self.base_a_curr = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
         self.base_w_curr = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
         self.base_quat_curr = np.array([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
+
 
     def odom_callback(self, msg):
         self.base_linear_v_curr = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]) # In body frame
@@ -203,15 +213,19 @@ class NSCTesterNode(Node):
         v_err = -self.v_curr[6:]
         tau_pd = self.Kp @ q_err + self.Kd @ v_err
 
+        # print(f"Position Error : {q_err.tolist()}")
+
         # Total torque (RNEA + Feedback + External)
         self.tau_cmd = tau_rnea_joint + tau_pd - self.joint_tau_external
 
         # Clipping
         self.tau_cmd = np.clip(self.tau_cmd, -self.joint_tau_limit, self.joint_tau_limit)
 
-        ## ============== Wheel control ============== ==
+        ## ============== Wheel control ================ ##
         # State
         theta, theta_dot, L = self.compute_com_and_theta(self.q_curr, self.v_curr)
+
+        print(f"theta : {theta}, theta_dot : {theta_dot}, L : {L}")
 
         # Control logic
         target_phi = 0
@@ -224,6 +238,8 @@ class NSCTesterNode(Node):
         self.tau_cmd[self.wheel_L_joint_id] = np.clip(self.tau_cmd[self.wheel_L_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
         self.tau_cmd[self.wheel_R_joint_id] = np.clip(self.tau_cmd[self.wheel_R_joint_id], -self.wheel_tau_limit, self.wheel_tau_limit)
 
+        # print(f"Torque Command : {self.tau_cmd}")
+
         # Publish joint command : Pin Ids -> ROS Ids
         # joint_command = JointState()
         # joint_command.header.stamp = self.get_clock().now().to_msg()
@@ -232,6 +248,21 @@ class NSCTesterNode(Node):
         # ]
         # joint_command.effort = self.tau_cmd[self.pin_to_ros_ids].tolist()
         # self.command_publisher.publish(joint_command)
+
+        # Publish debug signals for plotter
+        # Layout (37 floats, torques in PIN order):
+        #   [0]     theta         [1] theta_dot   [2] theta_cmd  [3] L  [4] wheel_tau
+        #   [5:13]  tau_cmd       [13:21] tau_rnea
+        #   [21:29] tau_pd        [29:37] tau_ext (MOB)
+        debug_msg = Float64MultiArray()
+        debug_msg.data = [
+            float(theta), float(theta_dot), float(theta_cmd), float(L), float(wheel_tau),
+            *self.tau_cmd.tolist(),
+            *tau_rnea_joint.tolist(),
+            *tau_pd.tolist(),
+            *self.joint_tau_external.tolist(),
+        ]
+        self.debug_publisher.publish(debug_msg)
 
 
 ### =============================== Auxilary Functions =============================== ###
@@ -245,12 +276,16 @@ class NSCTesterNode(Node):
         vcom_total = self.data.vcom[0]    # Total mass velocity 
 
         m_wheel_L = self.data.mass[self.wheel_L_joint_pin_id]
-        com_wheel_L = self.data.com[self.wheel_L_joint_pin_id]
-        vcom_wheel_L = self.data.vcom[self.wheel_L_joint_pin_id]
+        com_wheel_L  = self.data.oMi[self.wheel_L_joint_pin_id].act(
+                           self.data.com[self.wheel_L_joint_pin_id])     # world frame
+        vcom_wheel_L = self.data.oMi[self.wheel_L_joint_pin_id].rotation @ \
+                           self.data.vcom[self.wheel_L_joint_pin_id]     # world frame
 
         m_wheel_R = self.data.mass[self.wheel_R_joint_pin_id]
-        com_wheel_R = self.data.com[self.wheel_R_joint_pin_id]
-        vcom_wheel_R = self.data.vcom[self.wheel_R_joint_pin_id]
+        com_wheel_R  = self.data.oMi[self.wheel_R_joint_pin_id].act(
+                           self.data.com[self.wheel_R_joint_pin_id])     # world frame
+        vcom_wheel_R = self.data.oMi[self.wheel_R_joint_pin_id].rotation @ \
+                           self.data.vcom[self.wheel_R_joint_pin_id]     # world frame
 
         # Body's property exclude wheels
         M_body = M_total - m_wheel_L - m_wheel_R
@@ -263,6 +298,8 @@ class NSCTesterNode(Node):
   
         P_rel = com_body - com_wheel
         V_rel = vcom_body - vcom_wheel
+
+        # print(f"com_body | com_wheel | P_rel | V_rel : {com_body} | {com_wheel} | {P_rel} | {V_rel}")
         
         # Pitch calculation
         theta = math.atan2(P_rel[0], P_rel[2])

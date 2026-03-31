@@ -238,14 +238,19 @@ class StandaloneEnv:
         self.simulation_context.pause()
 
         # Manual /joint_states publisher to break the deadlock
-        from sensor_msgs.msg import JointState as JointStateMsg
-        js_pub = self._ros_node.create_publisher(JointStateMsg, "/joint_states", 10)
+        from sensor_msgs.msg import JointState, Imu
+        from nav_msgs.msg import Odometry
+
+
+        js_pub = self._ros_node.create_publisher(JointState, "/joint_states", 10)
+        im_pub = self._ros_node.create_publisher(Imu, "/imu", 10)
+        od_pub = self._ros_node.create_publisher(Odometry, "/odom", 10)
         joint_names = self._get_joint_names()
 
         print("[StandaloneEnv] Waiting for /joint_command ...")
         while not self._command_received:
             # Publish frozen joint state so the control node can start
-            js_msg = JointStateMsg()
+            js_msg = JointState()
             js_msg.header.stamp = self._ros_node.get_clock().now().to_msg()
             js_msg.name = joint_names
             js_msg.position = self.default_joint_pos.tolist()
@@ -254,6 +259,31 @@ class StandaloneEnv:
                                else [0.0] * len(joint_names))
             js_msg.effort = [0.0] * len(joint_names)
             js_pub.publish(js_msg)
+
+            im_msg = Imu()
+            im_msg.header.stamp = self._ros_node.get_clock().now().to_msg()
+            im_msg.header.frame_id = "imu_link"
+            im_msg.orientation.x = 0.0
+            im_msg.orientation.y = 0.0
+            im_msg.orientation.z = 0.0
+            im_msg.orientation.w = 1.0
+            im_msg.angular_velocity.x = 0.0
+            im_msg.angular_velocity.y = 0.0
+            im_msg.angular_velocity.z = 0.0
+            im_msg.linear_acceleration.x = 0.0
+            im_msg.linear_acceleration.y = 0.0
+            im_msg.linear_acceleration.z = 9.81
+            im_pub.publish(im_msg)
+
+            od_msg = Odometry()
+            od_msg.header.stamp = self._ros_node.get_clock().now().to_msg()
+            od_msg.header.frame_id = "odom"
+            od_msg.child_frame_id = "base_link"
+            od_msg.twist.twist.linear.x = 0.0
+            od_msg.twist.twist.linear.y = 0.0
+            od_msg.twist.twist.linear.z = 0.0
+            od_pub.publish(od_msg)
+
 
             simulation_app.update()
             self._rclpy.spin_once(self._ros_node, timeout_sec=0.1)
