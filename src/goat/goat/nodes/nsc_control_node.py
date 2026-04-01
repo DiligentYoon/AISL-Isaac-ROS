@@ -219,14 +219,14 @@ class NSCTesterNode(Node):
         # # Total torque (RNEA + Feedback + External)
         self.tau_cmd = tau_rnea_joint + tau_pd - self.joint_tau_external
 
-        # # Clipping
+        # Clipping
         self.tau_cmd = np.clip(self.tau_cmd, -self.joint_tau_limit, self.joint_tau_limit)
 
         # ## ============== Wheel control ================ ##
-        # # State
+        # State
         theta, theta_dot, L = self.compute_com_and_theta(self.q_curr, self.v_curr)
 
-        print(f"theta : {theta}, theta_dot : {theta_dot}, L : {L}")
+        # print(f"theta : {theta}, theta_dot : {theta_dot}, L : {L}")
 
         # Control logic
         target_phi = 0
@@ -336,8 +336,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = NSCTesterNode()
     
-    # AISL Computer에서 Test 해보기
-
+    # Automatic control loop using ROS timer callback
     # try:
     #     rclpy.spin(node)
     # except KeyboardInterrupt:
@@ -346,6 +345,7 @@ def main(args=None):
     #     node.destroy_node()
     #     rclpy.shutdown()
 
+    # Manual control loop to maintain fixed control frequency
     dt = node.dt
     next_t = time.monotonic()
 
