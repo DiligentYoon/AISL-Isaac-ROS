@@ -10,6 +10,7 @@ import time
 import numpy as np
 import pinocchio as pin
 import math
+import csv
 
 TARGET_JOINT_ANGLE = [0.0, 0.738, 1.462, 0.0, 0.0, -0.738, -1.462, 0.0] # Pinnochio convention : [hip_L, thigh_L, knee_L, wheel_L, hip_R, thigh_R, knee_R, wheel_R]
 
@@ -111,16 +112,17 @@ class NSCTesterNode(Node):
         self.n_joints = self.nv - 6                     # Num of Motors
         self.joint_tau_limit = 4.5                      # Nm
         self.wheel_tau_limit = 2.5                      # Nm
+        self.theta_cmd_limit =math.radians(5.0)
 
         # Parameters
         self.dt = 1/200
         self.Kp = np.eye(self.n_joints) * 0.1
         self.Kd = np.eye(self.n_joints) * 0.05
         self.Ko = np.eye(self.nv) * 1.0                                    # MOB gain (Base 6 + Joints n)
-        self.wheel_Kp_att = 0.1
-        self.wheel_Kd_att = 0.05
-        self.wheel_Kp_pos = 0.1
-        self.wheel_Kd_pos = 0.05
+        self.wheel_Kp_att = 100.0
+        self.wheel_Kd_att = 20.0
+        self.wheel_Kp_pos = 0.05
+        self.wheel_Kd_pos = 0.02
 
         # State variables
         self.q_curr = np.zeros(self.nq)
@@ -160,6 +162,9 @@ class NSCTesterNode(Node):
         self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
 
         self.timer = self.create_timer(self.dt, self.control_loop)
+
+        self.com_body = []
+        self.com_body_vel = []
 
 
     def joint_callback(self, msg):
@@ -245,21 +250,22 @@ class NSCTesterNode(Node):
         joint_command = JointState()
         joint_command.header.stamp = self.get_clock().now().to_msg()
         joint_command.name = [
-            'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
+            'hip_L_Joint', 'hip_R_Joint', 'thigh_L_Joint', 'thigh_R_Joint', 
+            'knee_L_Joint', 'knee_R_Joint', 'wheel_L_Joint', 'wheel_R_Joint'
         ]
         joint_command.effort = self.tau_cmd[self.pin_to_ros_ids].tolist()
         self.command_publisher.publish(joint_command)
 
         # Publish debug signals for plotter
-        debug_msg = Float64MultiArray()
-        debug_msg.data = [
-            float(theta), float(theta_dot), float(theta_cmd), float(L), float(wheel_tau),
-            *self.tau_cmd.tolist(),
-            *tau_rnea_joint.tolist(),
-            *tau_pd.tolist(),
-            *self.joint_tau_external.tolist(),
-        ]
-        self.debug_publisher.publish(debug_msg)
+        # debug_msg = Float64MultiArray()
+        # debug_msg.data = [
+        #     float(theta), float(theta_dot), float(theta_cmd), float(L), float(wheel_tau),
+        #     *self.tau_cmd.tolist(),
+        #     *tau_rnea_joint.tolist(),
+        #     *tau_pd.tolist(),
+        #     *self.joint_tau_external.tolist(),
+        # ]
+        # self.debug_publisher.publish(debug_msg)
 
 
 ### =============================== Auxilary Functions =============================== ###
@@ -283,6 +289,12 @@ class NSCTesterNode(Node):
                            self.data.com[self.wheel_R_joint_pin_id])     # world frame
         vcom_wheel_R = self.data.oMi[self.wheel_R_joint_pin_id].rotation @ \
                            self.data.vcom[self.wheel_R_joint_pin_id]     # world frame
+        # all_body = []
+        # for i, data in enumerate(self.data.oMi):
+        #     if i == 0: continue
+        #     com = data.act(self.data.com[i])
+        #     all_body.append(com)
+        # self.com_body.append(np.array(all_body))
 
         # Body's property exclude wheels
         M_body = M_total - m_wheel_L - m_wheel_R
@@ -295,8 +307,6 @@ class NSCTesterNode(Node):
   
         P_rel = com_body - com_wheel
         V_rel = vcom_body - vcom_wheel
-
-        # print(f"com_body | com_wheel | P_rel | V_rel : {com_body} | {com_wheel} | {P_rel} | {V_rel}")
         
         # Pitch calculation
         theta = math.atan2(P_rel[0], P_rel[2])
@@ -322,7 +332,7 @@ class NSCTesterNode(Node):
         # Pitch PD controller
         theta_cmd = self.wheel_Kp_pos * phi_err - self.wheel_Kd_pos * phi_comp_dot
         
-        return theta_cmd
+        return np.clip(theta_cmd, -self.theta_cmd_limit, self.theta_cmd_limit)
     
 
     def wheel_attitude_control(self, theta, theta_dot, theta_cmd):
@@ -330,7 +340,7 @@ class NSCTesterNode(Node):
         theta_err = theta - theta_cmd
         wheel_tau = self.wheel_Kp_att * theta_err + self.wheel_Kd_att * theta_dot
         
-        return wheel_tau
+        return np.clip(wheel_tau, -self.wheel_tau_limit, self.wheel_tau_limit)
 
 def main(args=None):
     rclpy.init(args=args)
@@ -363,8 +373,18 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        # print(f"Save")
+        # data = [['name', 'value']]
+        # for i, com in enumerate(node.com_body):
+        #     data.append([f'body_{i}', f'{com}'])
+
+        # with open('com_body_data.csv', 'w', newline='') as file:
+        #     writer = csv.writer(file)
+        #     writer.writerows(data)
         node.destroy_node()
         rclpy.shutdown()
+    
+        
 
 if __name__ == '__main__':
     main()
