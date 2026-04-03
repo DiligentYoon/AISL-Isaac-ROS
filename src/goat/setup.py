@@ -26,8 +26,8 @@ setup(
             'topic_io_node = goat.nodes.topic_io_node:main',
             'control_node = goat.nodes.control_node:main',
             'nsc_control_node = goat.nodes.nsc_control_node:main',
+            'nsc_control_node_2 = goat.nodes.nsc_control_node_2:main',
             'nsc_plotter = goat.nodes.nsc_plotter:main',
-            'test = goat.nodes.test:main'
         ],
     },
 )
