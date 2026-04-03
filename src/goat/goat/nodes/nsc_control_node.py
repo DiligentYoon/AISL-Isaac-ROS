@@ -116,14 +116,14 @@ class NSCTesterNode(Node):
 
         # Parameters
         self.dt = 1/200
-        self.Kp = np.eye(self.n_joints) * 100.0
-        self.Kd = np.eye(self.n_joints) * 10.0
-        self.Ko = np.eye(self.nv) * 0.1                                    # MOB gain (Base 6 + Joints n)
-        self.wheel_Kp_att = 10.0
-        self.wheel_Kd_att = 1.0
-        self.wheel_Kp_pos = 5.0
-        self.wheel_Kd_pos = 0.1
-        self.cascade_ratio = 5
+        self.Ko = np.eye(self.nv) * 1.0                                    # MOB gain (Base 6 + Joints n)
+        self.Kp = np.eye(self.n_joints) * 20.0
+        self.Kd = np.eye(self.n_joints) * 3.0
+        self.wheel_Kp_att = 8.0
+        self.wheel_Kd_att = 0.8
+        self.wheel_Kp_pos = 0.5
+        self.wheel_Kd_pos = 0.2
+        self.cascade_ratio = 2
         self.count_tick = 0
 
         # State variables
@@ -141,6 +141,7 @@ class NSCTesterNode(Node):
         self.a_ref = np.zeros(self.nv)                                      # Reference joint acceleration
         self.phi_ref = 0.0
         self.theta_ref = 0.0
+        self.cur_theta_ref = 0.0
 
         # Reference assign
         self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
@@ -169,7 +170,7 @@ class NSCTesterNode(Node):
         self.imu_state_subscriber = self.create_subscription(Imu, '/imu', self.imu_callback, 10)
         self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
 
-        # self.timer = self.create_timer(self.dt, self.control_loop)
+        self.timer = self.create_timer(self.dt, self.control_loop)
 
         self.csv_data = {
             "com_pitch": [],
@@ -192,7 +193,6 @@ class NSCTesterNode(Node):
         self.joint_v_curr = v[self.ros_to_pin_ids]
         self.tau_applied = tau[self.ros_to_pin_ids]
         self._stamp_joint = msg.header.stamp
-        self._try_control_loop()
 
 
     def imu_callback(self, msg):
@@ -200,14 +200,11 @@ class NSCTesterNode(Node):
         self.base_w_curr = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
         self.base_quat_curr = np.array([msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w])
         self._stamp_imu = msg.header.stamp
-        self._try_control_loop()
 
 
     def odom_callback(self, msg):
         self.base_linear_v_curr = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]) # In body frame
         self._stamp_odom = msg.header.stamp
-        self._try_control_loop()
-
 
     def _try_control_loop(self):
         if None in (self._stamp_joint, self._stamp_imu, self._stamp_odom):
@@ -216,6 +213,8 @@ class NSCTesterNode(Node):
 
 
     def control_loop(self):
+        if None in (self._stamp_imu, self._stamp_joint, self._stamp_odom):
+            return
         # Stack base + joint state
         self.base_q_curr = np.concatenate((np.zeros(3), self.base_quat_curr))                  # XYZ position fixed to 0
         self.base_v_curr = np.concatenate((self.base_linear_v_curr, self.base_w_curr))
@@ -238,6 +237,8 @@ class NSCTesterNode(Node):
         # RNEA
         tau_rnea = pin.rnea(self.model, self.data, self.q_curr, self.v_curr, self.a_ref)
         tau_rnea_joint = tau_rnea[6:]                       # Extract joint torque
+        tau_rnea_joint[self.wheel_L_joint_id] = 0.0
+        tau_rnea_joint[self.wheel_R_joint_id] = 0.0
 
         # Generalized Momentum Observer ( tau_external = Ko * [Mv - int(tau + C.T*v - G + tau_external)dt] )
         tau_full = np.concatenate((np.zeros(6), self.tau_applied))              # base 6DOF unactuated
@@ -264,7 +265,8 @@ class NSCTesterNode(Node):
         # print(f"tick : {self.count_tick}")
         if self.count_tick % self.cascade_ratio == 0:
             self.theta_ref = self.wheel_com_horizontal_position_control(theta, theta_dot,  self.phi_ref, L)
-        wheel_tau = self.wheel_com_pitch_position_control(theta, theta_dot, self.theta_ref)
+        self.cur_theta_ref = (1 - 0.1) * self.cur_theta_ref + 0.1 * self.theta_ref
+        wheel_tau = self.wheel_com_pitch_position_control(theta, theta_dot, self.cur_theta_ref)
 
         self.tau_cmd[self.wheel_L_joint_id] = wheel_tau
         self.tau_cmd[self.wheel_R_joint_id] = -wheel_tau
@@ -401,13 +403,13 @@ def main(args=None):
     node = NSCTesterNode()
     
     # Automatic control loop using ROS timer callback
-    # try:
-    #     rclpy.spin(node)
-    # except KeyboardInterrupt:
-    #     pass
-    # finally:
-    #     node.destroy_node()
-    #     rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
     # Manual control loop to maintain fixed control frequency
     # dt = node.dt
@@ -427,16 +429,16 @@ def main(args=None):
     # Sensor-synchronized control loop
     # control_loop() is triggered automatically inside _try_control_loop()
     # when all three sensor callbacks receive data with the same timestamp.
-    try:
-        while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.001)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print(f"Save CSV")
-        # node.save_csv()
-        node.destroy_node()
-        rclpy.shutdown()
+    # try:
+    #     while rclpy.ok():
+    #         rclpy.spin_once(node, timeout_sec=0.001)
+    # except KeyboardInterrupt:
+    #     pass
+    # finally:
+    #     print(f"Save CSV")
+    #     # node.save_csv()
+    #     node.destroy_node()
+    #     rclpy.shutdown()
     
         
 

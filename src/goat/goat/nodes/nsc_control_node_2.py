@@ -7,10 +7,13 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Float64MultiArray
 
 import time
+import os
 import numpy as np
 import pinocchio as pin
 import math
 import csv
+
+from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 TARGET_JOINT_ANGLE = [0.0, 0.738, 1.462, 0.0, 0.0, -0.738, -1.462, 0.0] # Pinnochio convention : [hip_L, thigh_L, knee_L, wheel_L, hip_R, thigh_R, knee_R, wheel_R]
 
@@ -118,17 +121,18 @@ class NSCNode(Node):
         self.n_joints = self.nv - 6                     # Num of Motors
         self.joint_tau_limit = 4.5                      # Nm
         self.wheel_tau_limit = 2.5                      # Nm
-        self.theta_cmd_limit = math.radians(5.0)
+        self.theta_cmd_limit = math.radians(3.0)
 
         # Parameters
         self.dt = 1/200
-        self.Kp = np.eye(self.n_joints) * 20.0
+        self.Kp = np.eye(self.n_joints) * 8.0
         self.Kd = np.eye(self.n_joints) * 2.0
-        self.wheel_Kp_att = 6.0
-        self.wheel_Kd_att = 0.8
-        self.wheel_Kp_pos = 0.5
-        self.wheel_Kd_pos = 0.2
-        self.cascade_ratio = 1
+        self.wheel_Kp_att = 8.0
+        self.wheel_Kd_att = 1.5
+        self.wheel_Kp_pos = 0.1
+        self.wheel_Kd_pos = 0.05
+        self.alpha = 0.4
+        self.cascade_ratio = 5
         self.count_tick = 0
 
         # State variables
@@ -158,6 +162,7 @@ class NSCNode(Node):
         self.a_ref = np.zeros(self.nv)                                      # Reference joint acceleration
         self.phi_ref = 0.0
         self.theta_ref = 0.0
+        self.cur_theta_ref = 0.0
 
         # Reference assign
         self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
@@ -188,21 +193,37 @@ class NSCNode(Node):
         self.command_publisher = self.create_publisher(JointState, '/joint_command', 10)
 
         # Subscriber
-        self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
-        self.imu_state_subscriber = self.create_subscription(Imu, '/imu', self.imu_callback, 10)
-        self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+        self.joint_state_subscriber = Subscriber(self, JointState, '/joint_states', 10)
+        self.imu_state_subscriber = Subscriber(self, Imu, '/imu', 10)
+        self.velocity_state_subscriber = Subscriber(self, Odometry, '/odom', 10)
+        # self.joint_state_subscriber = self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
+        # self.imu_state_subscriber = self.create_subscription(Imu, '/imu', self.imu_callback, 10)
+        # self.velocity_state_subscriber = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
 
-        self.timer = self.create_timer(self.dt, self.control_loop)
+        self.time_sync = ApproximateTimeSynchronizer([self.joint_state_subscriber, self.imu_state_subscriber, self.velocity_state_subscriber], 10, 0.01)
+        self.time_sync.registerCallback(self.sync_callback)
+
+        # self.timer = self.create_timer(self.dt, self.control_loop)
 
         self.csv_data = {
             "com_pitch": [],
+            "com_pitch_vel": [],
             "com_pitch_ref": [],
+            "com_horizontal": [],
             "joint_pos": [],
             "joint_torque": [],
             "joint_target": [],
             "joint_acc_nom": [],
             "joint_acc_con": [],
         }
+
+    def sync_callback(self, joint_msg, imu_msg, odom_msg):
+        self.joint_callback(joint_msg)
+        self.imu_callback(imu_msg)
+        self.odom_callback(odom_msg)
+
+        # Sensor data syncronization
+        self.control_loop()
 
 
     def joint_callback(self, msg):
@@ -228,13 +249,10 @@ class NSCNode(Node):
         self.base_linear_v_curr = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]) # In body frame
         self._stamp_odom = msg.header.stamp
 
-    def _try_control_loop(self):
-        if None in (self._stamp_joint, self._stamp_imu, self._stamp_odom):
-            return
-        self.control_loop()
-
 
     def control_loop(self):
+        if None in (self._stamp_imu, self._stamp_joint, self._stamp_odom):
+            return
         # Stack base + joint state
         self.base_q_curr = np.concatenate((np.zeros(3), self.base_quat_curr))                  # XYZ position fixed to 0
         self.base_v_curr = np.concatenate((self.base_linear_v_curr, self.base_w_curr))
@@ -251,10 +269,15 @@ class NSCNode(Node):
         # State
         theta, theta_dot, L = self.compute_com_and_theta(self.q_curr, self.v_curr)
 
+        phi = (self.joint_q_curr[self.wheel_L_joint_id] - self.joint_q_curr[self.wheel_R_joint_id]) / 2.0
+        ratio = L / self.wheel_radius
+        phi_comp = phi + ratio * math.sin(theta)
+
         # Control logic
         if self.count_tick % self.cascade_ratio == 0:
             self.theta_ref = self.wheel_com_horizontal_position_control(theta, theta_dot,  self.phi_ref, L)
-        wheel_tau = self.wheel_com_pitch_position_control(theta, theta_dot, self.theta_ref)
+        self.cur_theta_ref = (1 - self.alpha) * self.cur_theta_ref + self.alpha * self.theta_ref
+        wheel_tau = self.wheel_com_pitch_position_control(theta, theta_dot, self.cur_theta_ref)
 
         ## ============= Joint control ================ ##
 
@@ -286,11 +309,13 @@ class NSCNode(Node):
         ## ============= Cmd setting =============== ##
         self.tau_cmd = tau_constrained_full[6:]
 
-        print(f"tau_cmd : {self.tau_cmd}")
+        # print(f"tau_cmd : {self.tau_cmd}")
 
         # CSV logging
         self.csv_data["com_pitch"].append(theta)
-        self.csv_data["com_pitch_ref"].append(self.theta_ref)
+        self.csv_data["com_pitch_vel"].append(theta_dot)
+        self.csv_data["com_pitch_ref"].append(self.cur_theta_ref)
+        self.csv_data["com_horizontal"].append(phi_comp)
         self.csv_data["joint_pos"].append(self.joint_q_curr.copy().tolist())
         self.csv_data["joint_torque"].append(self.tau_cmd.copy().tolist())
         self.csv_data["joint_target"].append(self.q_ref[7:].copy().tolist())
@@ -380,10 +405,11 @@ class NSCNode(Node):
 
 
     def save_csv(self, filename="nsc_log.csv"):
-        with open(filename, "w", newline="") as f:
+        default_path = "/mnt/c/Users/grape/OneDrive/CAU/GOAT/data"
+        with open(os.path.join(default_path, filename), "w", newline="") as f:
             writer = csv.writer(f)
 
-            header = ["step", "com_pitch", "com_pitch_ref"]
+            header = ["step", "com_pitch", "com_pitch_vel", "com_pitch_ref", "com_horizontal"]
 
             for name in self.pin_joint_names:
                 header.append(f"{name}_pos")
@@ -403,7 +429,9 @@ class NSCNode(Node):
                 row = [
                     k,
                     self.csv_data["com_pitch"][k],
+                    self.csv_data["com_pitch_vel"][k],
                     self.csv_data["com_pitch_ref"][k],
+                    self.csv_data["com_horizontal"][k],
                 ]
                 row += self.csv_data["joint_pos"][k]
                 row += self.csv_data["joint_torque"][k]
