@@ -15,6 +15,8 @@ import csv
 
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
+NUM_TRAJ_POINT = 1000
+DEFAULT_JOINT_ANGLE = [0.0, 1.0, 1.7, 0.0, 0.0, -1.0, -1.7, 0.0]
 TARGET_JOINT_ANGLE = [0.0, 0.738, 1.462, 0.0, 0.0, -0.738, -1.462, 0.0] # Pinnochio convention : [hip_L, thigh_L, knee_L, wheel_L, hip_R, thigh_R, knee_R, wheel_R]
 
 class NSCNode(Node):
@@ -132,7 +134,7 @@ class NSCNode(Node):
         self.wheel_Kp_pos = 0.1
         self.wheel_Kd_pos = 0.05
         self.alpha = 1.0
-        self.cascade_ratio = 2
+        self.cascade_ratio = 1
         self.count_tick = 0
 
         # State variables
@@ -159,13 +161,15 @@ class NSCNode(Node):
         self.base_w_curr = np.zeros(3)                                      # Base angular velocity
         self.base_a_curr = np.zeros(3)                                      # Base linear acceleration
         self.q_ref = np.zeros(self.nq)                                      # Reference joint position
+        self.q_ref_traj = np.zeros((NUM_TRAJ_POINT, self.n_joints))               # Reference joint position trajectory
         self.a_ref = np.zeros(self.nv)                                      # Reference joint acceleration
         self.phi_ref = 0.0
         self.theta_ref = 0.0
         self.cur_theta_ref = 0.0
 
         # Reference assign
-        self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
+        for i, (start, end) in enumerate(zip(DEFAULT_JOINT_ANGLE, TARGET_JOINT_ANGLE)):
+            self.q_ref_traj[:, i] = np.linspace(start, end, NUM_TRAJ_POINT)
         
         self.tau_cmd = np.zeros(self.n_joints)
         self.tau_applied = np.zeros(self.n_joints)
@@ -215,6 +219,8 @@ class NSCNode(Node):
             "joint_target": [],
             "joint_acc_nom": [],
             "joint_acc_con": [],
+            "joint_pos_error": [],
+            "joint_vel_error": [],
         }
 
     def sync_callback(self, joint_msg, imu_msg, odom_msg):
@@ -281,9 +287,13 @@ class NSCNode(Node):
 
         ## ============= Joint control ================ ##
 
+        # Update reference
+        self.q_ref[7:] = self.q_ref_traj[min(self.count_tick, NUM_TRAJ_POINT-1), :]
+        # self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
+
         # Error Feedback for desired generalized acceleration
         q_err = self.q_ref[7:] - self.q_curr[7:]
-        v_err = -self.v_curr[6:]
+        v_err = -self.v_curr[6:].copy()
         self.a_ref[6:] = self.Kp @ q_err + self.Kd @ v_err
         self.a_ref[self.wheel_L_joint_nv_id] = 0.0
         self.a_ref[self.wheel_R_joint_nv_id] = 0.0
@@ -308,6 +318,9 @@ class NSCNode(Node):
 
         ## ============= Cmd setting =============== ##
         self.tau_cmd = tau_constrained_full[6:]
+        # self.tau_cmd[self.wheel_L_joint_id] = wheel_tau
+        # self.tau_cmd[self.wheel_R_joint_id] = -wheel_tau
+
 
         # print(f"tau_cmd : {self.tau_cmd}")
 
@@ -316,11 +329,13 @@ class NSCNode(Node):
         self.csv_data["com_pitch_vel"].append(theta_dot)
         self.csv_data["com_pitch_ref"].append(self.cur_theta_ref)
         self.csv_data["com_horizontal"].append(phi_comp)
-        self.csv_data["joint_pos"].append(self.joint_q_curr.copy().tolist())
+        self.csv_data["joint_pos"].append(self.q_curr[7:].copy().tolist())
         self.csv_data["joint_torque"].append(self.tau_cmd.copy().tolist())
         self.csv_data["joint_target"].append(self.q_ref[7:].copy().tolist())
         self.csv_data["joint_acc_nom"].append(self.a_ref[6:].copy().tolist())
         self.csv_data["joint_acc_con"].append(a_ref_constrained[6:].copy().tolist())
+        self.csv_data["joint_pos_error"].append(q_err.copy().tolist())
+        self.csv_data["joint_vel_error"].append(v_err.copy().tolist())
 
 
         # Publish joint command : Pin Ids -> ROS Ids
@@ -421,6 +436,10 @@ class NSCNode(Node):
                 header.append(f"{name}_acc_nom")
             for name in self.pin_joint_names:
                 header.append(f"{name}_acc_con")
+            for name in self.pin_joint_names:
+                header.append(f"{name}_pos_error")
+            for name in self.pin_joint_names:
+                header.append(f"{name}_vel_error")
 
             writer.writerow(header)
 
@@ -438,6 +457,8 @@ class NSCNode(Node):
                 row += self.csv_data["joint_target"][k]
                 row += self.csv_data["joint_acc_nom"][k]
                 row += self.csv_data["joint_acc_con"][k]
+                row += self.csv_data["joint_pos_error"][k]
+                row += self.csv_data["joint_vel_error"][k]
                 writer.writerow(row)
 
     # ============== Related to Joint Torque Control ============== #  
@@ -553,7 +574,7 @@ class NSCNode(Node):
                                                    qdd_nom: np.ndarray,
                                                    Jc: np.ndarray,
                                                    Jcdot_v: np.ndarray,
-                                                   damping: float = 1e-3) -> np.ndarray:
+                                                   damping: float = 1e-6) -> np.ndarray:
         """
         Equality-constrained least squares projection:
             min ||qdd - qdd_nom||^2
