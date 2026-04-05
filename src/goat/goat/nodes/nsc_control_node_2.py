@@ -125,14 +125,14 @@ class NSCNode(Node):
 
         # Parameters
         self.dt = 1/200
-        self.Kp = np.eye(self.n_joints) * 8.0
-        self.Kd = np.eye(self.n_joints) * 2.0
+        self.Kp = np.eye(self.n_joints) * 100.0
+        self.Kd = np.eye(self.n_joints) * 1.0
         self.wheel_Kp_att = 8.0
         self.wheel_Kd_att = 1.5
         self.wheel_Kp_pos = 0.1
         self.wheel_Kd_pos = 0.05
-        self.alpha = 0.4
-        self.cascade_ratio = 5
+        self.alpha = 1.0
+        self.cascade_ratio = 2
         self.count_tick = 0
 
         # State variables
