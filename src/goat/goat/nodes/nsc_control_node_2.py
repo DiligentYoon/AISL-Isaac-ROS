@@ -311,11 +311,6 @@ class NSCNode(Node):
         tau_constrained = np.clip(tau_constrained, -self.joint_tau_limit, self.joint_tau_limit)
         tau_constrained_full = self.S_leg.T @ tau_constrained + self.S_wheel.T @ np.array([wheel_tau, -wheel_tau])
 
-        # RNEA : \tau = M * a_ref + C * v + G \in R^{nv}
-        # tau_rnea = pin.rnea(self.model, self.data, self.q_curr, self.v_curr, self.a_ref) # nv dimension
-        # tau_rnea = M @ self.a_ref + C @ self.v_curr + G                                    # nv dimension
-        # tau_rnea_joint = tau_rnea[6:]                                                      # Extract joint torque
-
         ## ============= Cmd setting =============== ##
         self.tau_cmd = tau_constrained_full[6:]
         # self.tau_cmd[self.wheel_L_joint_id] = wheel_tau
