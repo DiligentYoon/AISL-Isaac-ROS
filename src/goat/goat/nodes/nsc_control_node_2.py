@@ -15,7 +15,7 @@ import csv
 
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
-NUM_TRAJ_POINT = 100
+NUM_TRAJ_POINT = 1000
 DEFAULT_JOINT_ANGLE = [0.0, 1.0, 1.7, 0.0, 0.0, -1.0, -1.7, 0.0]
 TARGET_JOINT_ANGLE = [0.0, 0.738, 1.462, 0.0, 0.0, -0.738, -1.462, 0.0] # Pinnochio convention : [hip_L, thigh_L, knee_L, wheel_L, hip_R, thigh_R, knee_R, wheel_R]
 
@@ -127,10 +127,10 @@ class NSCNode(Node):
 
         # Parameters
         self.dt = 1/200
-        self.Kp = np.eye(self.n_joints) * 50.0
-        self.Kd = np.eye(self.n_joints) * 3.0
-        self.wheel_Kp_att = 3.0
-        self.wheel_Kd_att = 0.3
+        self.Kp = np.eye(self.n_joints) * 30.0
+        self.Kd = np.eye(self.n_joints) * 6.0
+        self.wheel_Kp_att = 6.0
+        self.wheel_Kd_att = 0.6
         self.wheel_Kp_pos = 0.02
         self.wheel_Kd_pos = 0.02
         self.alpha = 1.0
@@ -289,8 +289,8 @@ class NSCNode(Node):
         ## ============= Joint control ================ ##
 
         # Update reference
-        # self.q_ref[7:] = self.q_ref_traj[min(self.count_tick, NUM_TRAJ_POINT-1), :]
-        self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
+        self.q_ref[7:] = self.q_ref_traj[min(self.count_tick, NUM_TRAJ_POINT-1), :]
+        # self.q_ref[7:] = np.array(TARGET_JOINT_ANGLE)
 
         # Error Feedback for desired generalized acceleration
         q_err = self.q_ref[7:] - self.q_curr[7:]

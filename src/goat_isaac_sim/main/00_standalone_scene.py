@@ -39,7 +39,7 @@ class StandaloneEnv:
         self._rclpy = None
         self._ros_node = None
         self._next_step_time = None  # absolute wall-clock target for drift compensation
-        self._command_received = False  # set True on first /joint_command message
+        self._command_received = False  # set True on first /commands message
 
         self.default_root_pos = np.array([0.0, 0.0, 1.0], dtype=np.float32)
         self.default_root_quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
@@ -85,9 +85,9 @@ class StandaloneEnv:
         rclpy.init()
         self._ros_node = rclpy.create_node("isaac_goat_sim")
 
-        # Subscribe to /joint_command to detect the first control input.
+        # Subscribe to /commands to detect the first control input.
         self._ros_node.create_subscription(
-            JointState, "/joint_command", self._on_first_command, 10
+            JointState, "/commands", self._on_first_command, 10
         )
 
         ok = stage_utils.open_stage(self.usd_path)
@@ -220,18 +220,18 @@ class StandaloneEnv:
 
 
     def _on_first_command(self, msg):
-        """Callback for /joint_command — only used to flip the ready flag."""
+        """Callback for /commands — only used to flip the ready flag."""
         if not self._command_received:
             self._command_received = True
 
 
     def wait_for_first_command(self):
-        """Block until the first /joint_command message is received.
+        """Block until the first /commands message is received.
 
         Physics is paused during the wait — the robot stays frozen
         in its reset pose.  While waiting, a manual rclpy publisher
         sends /joint_states so the control node can bootstrap and
-        send /joint_command back (avoiding deadlock).
+        send /commands back (avoiding deadlock).
         After the first command arrives, the manual publisher is
         destroyed and Action Graph takes over /joint_states publishing.
         """
@@ -242,12 +242,12 @@ class StandaloneEnv:
         from nav_msgs.msg import Odometry
 
 
-        js_pub = self._ros_node.create_publisher(JointState, "/joint_states", 10)
-        im_pub = self._ros_node.create_publisher(Imu, "/imu", 10)
+        js_pub = self._ros_node.create_publisher(JointState, "/sim_joint_states", 10)
+        im_pub = self._ros_node.create_publisher(Imu, "/sim_imu", 10)
         od_pub = self._ros_node.create_publisher(Odometry, "/odom", 10)
         joint_names = self._get_joint_names()
 
-        print("[StandaloneEnv] Waiting for /joint_command ...")
+        print("[StandaloneEnv] Waiting for /commands ...")
         while not self._command_received:
             # Publish frozen joint state so the control node can start
             js_msg = JointState()
@@ -272,7 +272,7 @@ class StandaloneEnv:
             im_msg.angular_velocity.z = 0.0
             im_msg.linear_acceleration.x = 0.0
             im_msg.linear_acceleration.y = 0.0
-            im_msg.linear_acceleration.z = 9.81
+            im_msg.linear_acceleration.z = -9.81
             im_pub.publish(im_msg)
 
             od_msg = Odometry()
@@ -288,7 +288,7 @@ class StandaloneEnv:
             simulation_app.update()
             self._rclpy.spin_once(self._ros_node, timeout_sec=0.1)
 
-        print("[StandaloneEnv] /joint_command received — starting simulation loop.")
+        print("[StandaloneEnv] /commands received — starting simulation loop.")
         self._ros_node.destroy_publisher(js_pub)
         self.simulation_context.play()
         self._next_step_time = time.perf_counter()
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.usd_mode == "Floating":
-        USD_PATH = os.path.abspath("src/assets/GOAT/WF_GOAT/usd/GOAT_ROS.usd")
+        USD_PATH = os.path.abspath("src/assets/GOAT/WF_GOAT/usd/GOAT_ROS_HIL.usd")
     elif args.usd_mode == "Fixed":
         USD_PATH = os.path.abspath("src/assets/GOAT/WF_GOAT/usd/GOAT_ROS_Fixed.usd")
     else: 
@@ -347,10 +347,13 @@ if __name__ == "__main__":
     env.load_scene()
     env.initialize_handles()
 
-    env.set_default_root_state(position=[0.0, 0.0, 0.49],
+    # env.set_default_root_state(position=[0.0, 0.0, 0.51],
+    #                            orientation=[1.0, 0.0, 0.0, 0.0])
+    env.set_default_root_state(position=[0.0, 0.0, 0.4795],
                                orientation=[1.0, 0.0, 0.0, 0.0])
 
-    env.set_default_joint_state(np.array([0.0, 0.0, 0.9, -0.9, 1.7, -1.7, 0.0, 0.0]))
+    env.set_default_joint_state(np.array([0.0, 0.0, 1.0, -1.0, 1.7, -1.7, 0.0, 0.0]))
+    # env.set_default_joint_state(np.array([0.0, 0.0, 0.738, -0.738, 1.462, -1.462, 0.0, 0.0]))
 
     env.reset()
     env.wait_for_first_command()
